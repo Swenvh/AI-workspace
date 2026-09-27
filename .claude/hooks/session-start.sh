@@ -24,4 +24,13 @@ if ! command -v yt-dlp >/dev/null 2>&1; then
   uv tool install yt-dlp
 fi
 
+# watch: preconfigure the Gemini engine so the first-run wizard is skipped.
+# The key itself is never stored here; it comes from the GEMINI_API_KEY
+# environment variable set in the cloud environment settings.
+WATCH_CONFIG="$HOME/.config/watch/.env"
+if [ ! -f "$WATCH_CONFIG" ]; then
+  mkdir -p "$(dirname "$WATCH_CONFIG")"
+  (umask 077 && printf 'WATCH_ENGINE="gemini"\nWATCH_DETAIL="balanced"\nSETUP_COMPLETE="true"\n' > "$WATCH_CONFIG")
+fi
+
 echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "${CLAUDE_ENV_FILE:-/dev/null}"
