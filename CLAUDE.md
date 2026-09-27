@@ -1,6 +1,6 @@
 # AI-workspace
 
-This repo holds Claude Code skills (`.claude/skills/`) and a SessionStart hook that installs the SkillSpector CLI.
+This repo holds Claude Code skills (`.claude/skills/`) and a SessionStart hook that installs the tools they need (SkillSpector CLI, ffmpeg, yt-dlp).
 
 ## Security check before installing anything
 
