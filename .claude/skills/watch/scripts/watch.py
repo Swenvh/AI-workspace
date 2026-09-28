@@ -31,14 +31,14 @@ LOCAL_ONLY_FLAGS = (("--detail", "detail"), ("--fps", "fps"), ("--max-frames", "
 
 
 def run_gemini(args, config, key, start_sec, end_sec, auth) -> int:
-    """Google watches the video. No captions, frames, or Whisper; no fallback on failure."""
+    """Google watches the video. Returns None after printing an answer, else the error for the local fallback."""
     ignored = [flag for flag, name in LOCAL_ONLY_FLAGS if getattr(args, name) is not None]
     ignored += [flag for flag, on in (("--no-whisper", args.no_whisper), ("--no-dedup", args.no_dedup)) if on]
     clip = (start_sec, end_sec) if start_sec is not None or end_sec is not None else None
     uploaded, warning, result, error, sent, work = None, None, None, None, "URL sent to Google", None
     try:
         if gemini.is_youtube(args.source):
-            video = {"uri": args.source}
+            video = {"uri": gemini.canonical_youtube(args.source)}
         else:
             parent = Path(args.out_dir).expanduser().resolve() if args.out_dir else None
             if parent:
@@ -54,7 +54,8 @@ def run_gemini(args, config, key, start_sec, end_sec, auth) -> int:
             sent = "video uploaded to Google, deleted after the answer"
         print(f"[watch] asking {config['gemini_model']}…", file=sys.stderr)
         result = gemini.ask(video, args.question, model=config["gemini_model"], key=key,
-                            clip=clip, timeout=config["gemini_timeout"])
+                            clip=clip, timeout=config["gemini_timeout"],
+                            fallback_models=config["gemini_fallback_models"])
     except SystemExit as exc:
         error = str(exc)
     finally:
@@ -63,11 +64,15 @@ def run_gemini(args, config, key, start_sec, end_sec, auth) -> int:
         if work:  # Run-owned; holds at most a downloaded copy. A local source file lives elsewhere.
             shutil.rmtree(work, ignore_errors=True)
 
+    if error:
+        return error + (f" Cleanup warning: {warning}" if warning else "")
     print()
     print("# watch: video report")
     print()
     print(f"- **Source:** {args.source} ({sent})")
-    print(f"- **Engine:** {config['gemini_model']} ({result['processing'] if result else 'failed'})")
+    print(f"- **Engine:** {result['model']} ({result['processing']})")
+    if result.get("fallback_notes"):
+        print(f"- **Earlier Gemini attempts failed:** {len(result['fallback_notes'])} (answer came from a fallback)")
     if clip:
         print(f"- **Focus range:** {format_time(start_sec or 0)} → {format_time(end_sec) if end_sec is not None else 'end'}")
     if ignored:
@@ -77,18 +82,13 @@ def run_gemini(args, config, key, start_sec, end_sec, auth) -> int:
     if warning:
         print(f"- **Cleanup warning:** {warning}")
     print()
-    if error:
-        print("## Unavailable evidence")
-        print()
-        print(f"- {error}")
-        return 1
     print("## Answer (from Gemini)")
     print()
     print("_These are Gemini's observations of the video, not frames you viewed yourself. "
           "Relay them as such; rerun with `--engine local` to inspect frames directly._")
     print()
     print(result["text"])
-    return 0
+    return None
 
 
 def main() -> int:
@@ -162,8 +162,13 @@ def main() -> int:
     auth = {"cookies_file": cookies_file, "cookies_from_browser": cookies_browser}
 
     gemini_key = load_gemini_key()
+    gemini_error = None
     if resolve_engine(args.engine or config["engine"], bool(gemini_key)) == "gemini":
-        return run_gemini(args, config, gemini_key, start_sec, end_sec, auth)
+        gemini_error = run_gemini(args, config, gemini_key, start_sec, end_sec, auth)
+        if gemini_error is None:
+            return 0
+        # Never end on a bare error: fall back to frames + transcript on this machine.
+        print(f"[watch] {gemini_error}\n[watch] Gemini failed; falling back to the local engine…", file=sys.stderr)
 
     parent = Path(args.out_dir).expanduser().resolve() if args.out_dir else None
     if parent:
@@ -172,7 +177,7 @@ def main() -> int:
     print(f"[watch] working dir: {work}", file=sys.stderr)
     url_source = is_url(args.source)
     dl = {"subtitle_path": None, "info": {}, "downloaded": False}
-    errors = []
+    errors = [f"{gemini_error} Fell back to the local engine."] if gemini_error else []
     all_segments = []
     track_available = False
     transcript_source = None

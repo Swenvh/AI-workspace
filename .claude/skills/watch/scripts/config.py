@@ -15,6 +15,7 @@ DETAILS = {'transcript', 'efficient', 'balanced', 'token-burner'}
 BACKENDS = {'auto', 'groq', 'openai', 'whisperx', 'none'}
 ENGINES = {'auto', 'gemini', 'local'}
 DEFAULT_GEMINI_MODEL = 'gemini-3.7-flash'
+DEFAULT_GEMINI_FALLBACKS = 'gemini-3.5-flash,gemini-flash-latest,gemini-3.1-flash-lite'
 
 
 class ConfigError(ValueError):
@@ -146,6 +147,8 @@ def get_config(*, backend_override: str | None = None) -> dict:
         'whisper_backend': backend,
         'engine': engine,
         'gemini_model': setting('WATCH_GEMINI_MODEL', DEFAULT_GEMINI_MODEL) or DEFAULT_GEMINI_MODEL,
+        'gemini_fallback_models': [m.strip() for m in setting('WATCH_GEMINI_FALLBACK_MODELS', DEFAULT_GEMINI_FALLBACKS).split(',')
+                                   if m.strip()],
         'gemini_timeout': positive_number(setting('WATCH_GEMINI_TIMEOUT', '600'), 'WATCH_GEMINI_TIMEOUT'),
         'sub_lang': setting('WATCH_SUB_LANG', 'auto'),
         'cookies_file': setting('WATCH_COOKIES_FILE'),
