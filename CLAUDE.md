@@ -22,6 +22,12 @@ The `skill-inspector` skill describes this review in detail.
 
 Once approved, install skills here in `.claude/skills/<name>/` and push to `main`. Leave out plugin hooks, tests and dev tooling unless the user asks for them.
 
+Skills must always be on `main`. Any change to a skill (new skill, fix, updated instructions) lands on `main`; when working on a feature branch, also merge it into `main` and push.
+
+## Using skills
+
+When a skill fails (API overload, rate limit, download error), keep trying other routes before replying: retry, use the skill's fallbacks, narrow the scope. Come back with an answer, not an error. Only report failure after the options are exhausted, and say what was tried.
+
 ## Copying skills to a project repo
 
 When the user asks to put skills into another repo (e.g. "zet `no-ai-slop` in repo `mijn-project`"):
